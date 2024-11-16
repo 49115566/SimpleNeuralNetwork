@@ -83,13 +83,16 @@ class NeuralNetwork:
         patience_counter = 0  # Initialize patience counter for early stopping
 
         for epoch in range(epochs):
+            loss = 0
             for x, y in zip(inputs, targets):
                 # Forward pass
                 hidden_outputs1 = [neuron.activate(x) for neuron in self.hidden_neurons1]
                 hidden_outputs2 = [neuron.activate(np.array(hidden_outputs1)) for neuron in self.hidden_neurons2]
                 outputs = [neuron.activate(np.array(hidden_outputs2)) for neuron in self.output_neurons]
                 
-                print(f'Epoch {epoch + 1}/{epochs}, Input: {x}, Target: {y}, Output: {outputs}')
+                loss += sum([(output - y[i]) ** 2 for i, output in enumerate(outputs)])  # Calculate loss
+
+                # print(f'Epoch {epoch + 1}/{epochs}, Input: {x}, Target: {y}, Output: {outputs}')
 
                 # print(f'output_neurons:')
                 # Backward pass for output layer
@@ -147,6 +150,23 @@ class NeuralNetwork:
                     neuron.bias -= gradient_bias
 
                     # print(f'error: {error}, Δw: {learning_rate * d_loss_d_output * d_output_d_z * d_z_d_weights}, Δb: {learning_rate * d_loss_d_output * d_output_d_z * d_z_d_bias}')
+            
+            if loss > best_loss:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    print(f'Early stopping at epoch {epoch + 1}')
+                    if best_weights is not None:
+                        for i, neuron in enumerate(self.output_neurons):
+                            neuron.weights = best_weights[i]
+                            neuron.bias = best_biases[i]
+                    return
+            else:
+                best_loss = loss
+                patience_counter = 0
+                best_weights = [neuron.weights for neuron in self.output_neurons]
+                best_biases = [neuron.bias for neuron in self.output_neurons]
+                
+            print(f'Epoch {epoch + 1}/{epochs}, Avg Loss: {loss / len(inputs)}')
 
 # Example usage:
 # Create a neural network with 3 input neurons, 5 hidden neurons in each of the 2 hidden layers, and 3 output neurons
@@ -163,16 +183,17 @@ std = np.std(inputs, axis=0)
 inputs = (inputs - mean) / std
 
 # Train the network
-network.train(inputs, targets, learning_rate=0.0001, epochs=1000)
+network.train(inputs, targets, learning_rate=0.01, epochs=1000)
 
 # Test the network with different inputs
-test_inputs = np.array([[2.0], [1.0], [-1.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0]])
+test_inputs = np.linspace(-1.2, 1.2, 10).reshape(-1, 1)
 test_inputs = (test_inputs - mean) / std
 
+print("Final predictions using training dataset:")
+for i in range(len(inputs)):
+    print(f'Input: {inputs[i]}, Target: {targets[i]} Output: {network.feedforward(inputs[i])}')
+
+print("Predictions using test inputs:")
 for test_input in test_inputs:
     outputs = network.feedforward(test_input)
     print(f'Input: {test_input}, Target: {(test_input * std + mean) ** 10} Output: {outputs}')
-
-print("Using training dataset:")
-for i in range(len(inputs)):
-    print(f'Input: {inputs[i]}, Target: {targets[i]} Output: {network.feedforward(inputs[i])}')
