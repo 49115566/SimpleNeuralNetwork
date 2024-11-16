@@ -2,13 +2,25 @@ import numpy as np
 from typing import List
 
 class Neuron:
-    def __init__(self, num_inputs: int, activation: str = 'relu', seed: int = None):
-        if seed is not None:
-            np.random.seed(seed)  # Set the random seed for reproducibility
-        limit = np.sqrt(6 / (num_inputs + 1))  # Xavier initialization limit
-        self.weights = np.random.uniform(-limit, limit, num_inputs)  # Initialize weights
-        self.bias = np.random.uniform(-limit, limit)  # Initialize bias
-        # Set activation function and its derivative
+    def __init__(self, num_inputs: int, activation: str = 'relu', initialization: str = 'he', rng: np.random.Generator = None):
+        if rng is None:
+            rng = np.random.default_rng()  # Create a default random number generator if none is provided
+        if initialization == 'he':
+            limit = np.sqrt(2 / num_inputs)  # He initialization limit
+        elif initialization == 'xavier':
+            limit = np.sqrt(6 / (num_inputs + 1))  # Xavier initialization limit
+        elif initialization == 'normal':
+            limit = 1  # Standard normal initialization
+        else:
+            raise ValueError("Unsupported initialization method")
+
+        if initialization == 'normal':
+            self.weights = rng.normal(0, limit, num_inputs)  # Initialize weights with normal distribution
+            self.bias = rng.normal(0, limit)  # Initialize bias with normal distribution
+        else:
+            self.weights = rng.uniform(-limit, limit, num_inputs)  # Initialize weights with uniform distribution
+            self.bias = rng.uniform(-limit, limit)  # Initialize bias with uniform distribution
+        
         if activation == 'relu':
             self.activation_function = self.relu
             self.activation_derivative = self.relu_derivative
@@ -48,10 +60,14 @@ class Neuron:
 
 class NeuralNetwork:
     def __init__(self, num_inputs: int, num_hidden_neurons1: int, num_hidden_neurons2: int, num_output_neurons: int, seed: int = None):
+        if seed is not None:
+            self.rng = np.random.default_rng(seed=seed)
+        else:
+            self.rng = np.random.default_rng()
         # Initialize neurons for each layer
-        self.hidden_neurons1 = [Neuron(num_inputs, activation='relu', seed=seed) for _ in range(num_hidden_neurons1)]
-        self.hidden_neurons2 = [Neuron(num_hidden_neurons1, activation='relu', seed=seed) for _ in range(num_hidden_neurons2)]
-        self.output_neurons = [Neuron(num_hidden_neurons2, activation='linear', seed=seed) for _ in range(num_output_neurons)]
+        self.hidden_neurons1 = [Neuron(num_inputs, activation='relu', initialization='he', rng=self.rng) for _ in range(num_hidden_neurons1)]
+        self.hidden_neurons2 = [Neuron(num_hidden_neurons1, activation='relu', initialization='he', rng=self.rng) for _ in range(num_hidden_neurons2)]
+        self.output_neurons = [Neuron(num_hidden_neurons2, activation='linear', initialization='xavier', rng=self.rng) for _ in range(num_output_neurons)]
 
     def feedforward(self, inputs: np.ndarray) -> List[float]:
         # Forward pass through the first hidden layer
@@ -134,10 +150,10 @@ class NeuralNetwork:
 
 # Example usage:
 # Create a neural network with 3 input neurons, 5 hidden neurons in each of the 2 hidden layers, and 3 output neurons
-network = NeuralNetwork(num_inputs=1, num_hidden_neurons1=64, num_hidden_neurons2=64, num_output_neurons=1, seed=42)
+network = NeuralNetwork(num_inputs=1, num_hidden_neurons1=10, num_hidden_neurons2=10, num_output_neurons=1, seed=42)
 
 # Training data (inputs and targets)
-inputs = np.array([[2.0], [1.0], [-1.0], [100.0], [-10.0], [13.0], [-4.0], [-16.0], [-18.0], [19], [27], [22], [-6], [-1], [3]])
+inputs = np.linspace(-1, 1, 100).reshape(-1, 1)
 targets = inputs ** 10
 
 mean = np.mean(inputs, axis=0)
@@ -155,8 +171,8 @@ test_inputs = (test_inputs - mean) / std
 
 for test_input in test_inputs:
     outputs = network.feedforward(test_input)
-    print(f'Input: {test_input}, Output: {outputs}')
+    print(f'Input: {test_input}, Target: {(test_input * std + mean) ** 10} Output: {outputs}')
 
 print("Using training dataset:")
-for input in inputs:
-    print(f'Input: {input}, Output: {network.feedforward(input)}')
+for i in range(len(inputs)):
+    print(f'Input: {inputs[i]}, Target: {targets[i]} Output: {network.feedforward(inputs[i])}')
